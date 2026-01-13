@@ -4,10 +4,15 @@ import typer
 
 cli = typer.Typer() # Renamed from 'app' to avoid confusion with app.py
 
+# Get the directory where this script (main.py) is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Go up two levels to the root Pynote-app folder
+DB_PATH = os.path.join(BASE_DIR, "..", "..", "notes_db.json")
+
 def load_notes():
-    if not os.path.exists("notes_db.json"):
+    if not os.path.exists(DB_PATH):
         return []
-    with open("notes_db.json", "r") as f:
+    with open(DB_PATH, "r") as f:
         try:
             return json.load(f)
         except:
