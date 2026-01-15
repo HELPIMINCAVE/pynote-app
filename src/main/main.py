@@ -1,88 +1,51 @@
-import streamlit as st
-import pandas as pd
-import sys
+import typer
+import json
 import os
+from datetime import datetime
 
-# Ensure the root directory is in your path
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+# CHANGE THIS: Rename 'app' to 'cli' to avoid clashing with app.py
+cli = typer.Typer()
 
-try:
-    from src.main.main import add, load_notes, save_notes, delete_note
-except ImportError as e:
-    st.error(f"Import Error: {e}")
-    st.stop()
+def load_notes():
+    # Using a relative path that works from the root
+    file_path = "notes_db.json"
+    if not os.path.exists(file_path):
+        return []
+    with open(file_path, "r") as f:
+        try:
+            return json.load(f)
+        except:
+            return []
 
-st.set_page_config(page_title="Pynote Pro", page_icon="📝")
-st.title("📝 Pynote Streamlit")
+def save_notes(notes):
+    with open("notes_db.json", "w") as f:
+        json.dump(notes, f, indent=4)
 
-# --- SIDEBAR: Add & Export ---
-with st.sidebar:
-    st.header("New Note")
-    title_in = st.text_input("Title")
-    content_in = st.text_area("Content")
-    if st.button("Add Note", use_container_width=True):
-        if title_in and content_in:
-            add(title_in, content_in)
-            st.success("Note added!")
-            st.rerun()
-    
-    st.divider()
-    st.header("Backup & Export")
+def delete_note(note_id: int):
     notes = load_notes()
-    
-    if notes:
-        # Convert notes to Dataframe for CSV export
-        df = pd.DataFrame(notes)
-        
-        # 1. Export as CSV
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Export as .CSV",
-            data=csv,
-            file_name='pynote_export.csv',
-            mime='text/csv',
-            use_container_width=True
-        )
-        
-        # 2. Export as TXT
-        txt_content = "=== PYNOTE EXPORT ===\n\n"
-        for n in notes:
-            ts = n.get('timestamp', 'No date')
-            txt_content += f"TITLE: {n['title']}\nDATE: {ts}\nCONTENT: {n['content']}\n{'-' * 20}\n"
-        
-        st.download_button(
-            label="📄 Export as .TXT",
-            data=txt_content,
-            file_name='pynote_export.txt',
-            mime='text/plain',
-            use_container_width=True
-        )
-    
-    st.divider()
-    st.subheader("Danger Zone")
-    if st.button("Clear All Notes", type="primary", use_container_width=True):
-        save_notes([])
-        st.rerun()
+    updated_notes = [n for n in notes if n['id'] != note_id]
+    save_notes(updated_notes)
 
-# --- MAIN AREA: Search & Display ---
-search_query = st.text_input("🔍 Search notes...", "").lower()
+# The core function Streamlit calls
+def add(title: str, content: str):
+    notes = load_notes()
+    new_id = len(notes) + 1
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_note = {
+        "id": new_id,
+        "title": title,
+        "content": content,
+        "timestamp": timestamp
+    }
+    notes.append(new_note)
+    save_notes(notes)
+    return new_note
 
-if not notes:
-    st.info("No notes found. Create one in the sidebar!")
-else:
-    # Filter notes for search
-    filtered = [
-        n for n in notes
-        if search_query in n['title'].lower() or search_query in n['content'].lower()
-    ]
-    
-    for note in reversed(filtered):
-        # We display the timestamp in the expander title
-        timestamp = note.get('timestamp', 'New Note')
-        with st.expander(f"📌 {note['title']} ({timestamp})"):
-            st.write(note['content'])
-            
-            # Delete Button
-            if st.button(f"🗑️ Delete Note", key=f"del_{note['id']}"):
-                delete_note(note['id'])
-                st.rerun()
+# Update the decorator to use 'cli'
+@cli.command()
+def add_note_cli(title: str, content: str):
+    add(title, content)
+    typer.echo(f"Added {title}")
+
+if __name__ == "__main__":
+    cli()

@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from src.main.main import add, load_notes, save_notes, delete_note
 import sys
 import os
 
