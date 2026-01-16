@@ -15,15 +15,29 @@ with st.sidebar:
             add(title_in, content_in)
             st.rerun()
     
-    st.divider()
+    # Load notes once here to use for logic below
     notes = load_notes()
     
+    # If notes exist, show Export and then Danger Zone
     if notes:
+        st.divider()
+        st.header("Backup & Export")
+        
+        # 1. Export as CSV
         df = pd.DataFrame(notes)
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Export as .CSV", data=csv, file_name='notes.csv', mime='text/csv',
                            use_container_width=True)
+        
+        # 2. Export as TXT (The missing part of your bug)
+        txt_content = ""
+        for n in notes:
+            txt_content += f"TITLE: {n['title']}\nDATE: {n.get('timestamp', 'N/A')}\nCONTENT: {n['content']}\n{'-' * 20}\n"
+        
+        st.download_button("📄 Export as .TXT", data=txt_content.encode('utf-8'), file_name='notes.txt',
+                           mime='text/plain', use_container_width=True)
     
+    # DANGER ZONE: Always separated by one divider from the section above
     st.divider()
     st.subheader("Danger Zone")
     if "confirm_delete" not in st.session_state:
@@ -35,13 +49,13 @@ with st.sidebar:
             st.rerun()
     else:
         st.warning("Are you sure?")
-        col1, col2 = st.columns(2)
-        with col1:
+        c1, c2 = st.columns(2)
+        with c1:
             if st.button("✅ Yes", type="primary", use_container_width=True):
                 save_notes([])
                 st.session_state.confirm_delete = False
                 st.rerun()
-        with col2:
+        with c2:
             if st.button("❌ No", use_container_width=True):
                 st.session_state.confirm_delete = False
                 st.rerun()
@@ -50,46 +64,38 @@ with st.sidebar:
 search_query = st.text_input("🔍 Search notes...", "").lower()
 
 if not notes:
-    st.info("No notes found.")
+    st.info("No notes found. Create one in the sidebar!")
 else:
     filtered = [n for n in notes if search_query in n['title'].lower() or search_query in n['content'].lower()]
     
     for note in reversed(filtered):
         with st.expander(f"📌 {note['title']} ({note.get('timestamp', 'No Date')})"):
-            
-            # Create a unique key for the edit mode state of this specific note
             edit_mode_key = f"edit_mode_{note['id']}"
             if edit_mode_key not in st.session_state:
                 st.session_state[edit_mode_key] = False
             
-            # SHOW CONTENT OR EDIT FORM
             if not st.session_state[edit_mode_key]:
-                # 1. JUST SHOW CONTENT
                 st.write(note['content'])
                 st.divider()
-                
-                # 2. BUTTONS AT THE BOTTOM
-                col_left, col_mid, col_right = st.columns([4, 1, 1])
-                with col_mid:
-                    if st.button("🗑️", key=f"del_{note['id']}", help="Delete Note"):
+                col_l, col_m, col_r = st.columns([4, 1, 1])
+                with col_m:
+                    if st.button("🗑️", key=f"del_{note['id']}"):
                         delete_note(note['id'])
                         st.rerun()
-                with col_right:
-                    if st.button("✏️", key=f"btn_edit_{note['id']}", help="Edit Note"):
+                with col_r:
+                    if st.button("✏️", key=f"edit_{note['id']}"):
                         st.session_state[edit_mode_key] = True
                         st.rerun()
             else:
-                # 3. SHOW EDIT FORM
                 edit_title = st.text_input("Edit Title", value=note['title'], key=f"t_{note['id']}")
                 edit_content = st.text_area("Edit Content", value=note['content'], key=f"c_{note['id']}")
-                
-                col_s, col_c = st.columns(2)
-                with col_s:
-                    if st.button("💾 Save", key=f"save_{note['id']}", use_container_width=True):
+                cs, cc = st.columns(2)
+                with cs:
+                    if st.button("💾 Save", key=f"s_{note['id']}", use_container_width=True):
                         update_note(note['id'], edit_title, edit_content)
                         st.session_state[edit_mode_key] = False
                         st.rerun()
-                with col_c:
-                    if st.button("❌ Cancel", key=f"cancel_{note['id']}", use_container_width=True):
+                with cc:
+                    if st.button("❌ Cancel", key=f"can_{note['id']}", use_container_width=True):
                         st.session_state[edit_mode_key] = False
                         st.rerun()
