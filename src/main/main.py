@@ -1,51 +1,67 @@
-import typer
 import json
 import os
 from datetime import datetime
 
-# Rename 'app' to 'cli' to prevent circular import with app.py
-cli = typer.Typer()
+DB_PATH = "notes_db.json"
 
-def load_notes():
-    file_path = "notes_db.json"
-    if not os.path.exists(file_path):
-        return []
-    with open(file_path, "r") as f:
+def load_db():
+    if not os.path.exists(DB_PATH):
+        # Initialize the file with empty lists if it doesn't exist
+        return {"users": [], "notes": []}
+    with open(DB_PATH, "r") as f:
         try:
             return json.load(f)
         except:
-            return []
+            return {"users": [], "notes": []}
 
-def save_notes(notes):
-    with open("notes_db.json", "w") as f:
-        json.dump(notes, f, indent=4)
+def save_db(db):
+    with open(DB_PATH, "w") as f:
+        json.dump(db, f, indent=4)
 
-def delete_note(note_id: int):
-    notes = load_notes()
-    updated_notes = [n for n in notes if n['id'] != note_id]
-    save_notes(updated_notes)
+def register_user(username, password):
+    db = load_db()
+    # Check if username already exists
+    if any(u['username'] == username for u in db['users']):
+        return False
+    db['users'].append({"username": username, "password": password})
+    save_db(db)
+    return True
 
-def update_note(note_id: int, new_title: str, new_content: str):
-    notes = load_notes()
-    for note in notes:
-        if note['id'] == note_id:
-            note['title'] = new_title
-            note['content'] = new_content
-            note['timestamp'] = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Edited)"
-            break
-    save_notes(notes)
+def login_user(username, password):
+    db = load_db()
+    for user in db['users']:
+        if user['username'] == username and user['password'] == password:
+            return True
+    return False
 
-def add(title: str, content: str):
-    notes = load_notes()
-    new_id = len(notes) + 1 if not notes else max(n['id'] for n in notes) + 1
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_note = {"id": new_id, "title": title, "content": content, "timestamp": timestamp}
-    notes.append(new_note)
-    save_notes(notes)
+def load_notes(username):
+    db = load_db()
+    # Only return notes belonging to this specific user
+    return [n for n in db['notes'] if n.get('owner') == username]
 
-@cli.command()
-def add_note_cli(title: str, content: str):
-    add(title, content)
+def add(title, content, username):
+    db = load_db()
+    new_id = 1 if not db['notes'] else max(n['id'] for n in db['notes']) + 1
+    new_note = {
+        "id": new_id,
+        "owner": username, # Keep track of who owns the note
+        "title": title,
+        "content": content,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    db['notes'].append(new_note)
+    save_db(db)
 
-if __name__ == "__main__":
-    cli()
+def delete_note(note_id):
+    db = load_db()
+    db['notes'] = [n for n in db['notes'] if n['id'] != note_id]
+    save_db(db)
+
+def update_note(note_id, title, content):
+    db = load_db()
+    for n in db['notes']:
+        if n['id'] == note_id:
+            n['title'] = title
+            n['content'] = content
+            n['timestamp'] = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Edited)"
+    save_db(db)

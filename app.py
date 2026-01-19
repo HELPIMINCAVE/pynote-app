@@ -1,101 +1,72 @@
 import streamlit as st
 import pandas as pd
-from src.main.main import add, load_notes, save_notes, delete_note, update_note
+from src.main.main import add, load_notes, save_db, delete_note, update_note, register_user, login_user
 
-st.set_page_config(page_title="Pynote Pro", page_icon="📝")
-st.title("📝 Pynote Streamlit")
+st.set_page_config(page_title="Pynote Secure", page_icon="🔒")
 
-# --- SIDEBAR: Add & Export ---
+# --- LOGIN LOGIC ---
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+
+if not st.session_state.logged_in:
+    st.title("🔐 Welcome to Pynote")
+    tab1, tab2 = st.tabs(["Login", "Sign Up"])
+    
+    with tab1:
+        u = st.text_input("Username", key="l_user")
+        p = st.text_input("Password", type="password", key="l_pass")
+        if st.button("Login"):
+            if login_user(u, p):
+                st.session_state.logged_in = True
+                st.session_state.username = u
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
+    
+    with tab2:
+        new_u = st.text_input("New Username", key="s_user")
+        new_p = st.text_input("New Password", type="password", key="s_pass")
+        if st.button("Create Account"):
+            if register_user(new_u, new_p):
+                st.success("Account created! You can now login.")
+            else:
+                st.error("Username already exists.")
+    st.stop()  # Prevents the rest of the app from loading until logged in
+
+# --- LOGGED IN APP ---
+st.title(f"📝 {st.session_state.username}'s Notes")
+
 with st.sidebar:
+    st.write(f"Logged in as: **{st.session_state.username}**")
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
+    st.divider()
+    
     st.header("New Note")
-    title_in = st.text_input("Title", key="new_title")
-    content_in = st.text_area("Content", key="new_content")
+    t_in = st.text_input("Title")
+    c_in = st.text_area("Content")
     if st.button("Add Note", use_container_width=True):
-        if title_in and content_in:
-            add(title_in, content_in)
+        if t_in and c_in:
+            add(t_in, c_in, st.session_state.username)
             st.rerun()
     
-    # Load notes once here to use for logic below
-    notes = load_notes()
-    
-    # If notes exist, show Export and then Danger Zone
+    notes = load_notes(st.session_state.username)
     if notes:
         st.divider()
-        st.header("Backup & Export")
-        
-        # 1. Export as CSV
-        df = pd.DataFrame(notes)
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Export as .CSV", data=csv, file_name='notes.csv', mime='text/csv',
-                           use_container_width=True)
-        
-        # 2. Export as TXT (The missing part of your bug)
-        txt_content = ""
-        for n in notes:
-            txt_content += f"TITLE: {n['title']}\nDATE: {n.get('timestamp', 'N/A')}\nCONTENT: {n['content']}\n{'-' * 20}\n"
-        
-        st.download_button("📄 Export as .TXT", data=txt_content.encode('utf-8'), file_name='notes.txt',
-                           mime='text/plain', use_container_width=True)
-    
-    # DANGER ZONE: Always separated by one divider from the section above
-    st.divider()
-    st.subheader("Danger Zone")
-    if "confirm_delete" not in st.session_state:
-        st.session_state.confirm_delete = False
-    
-    if not st.session_state.confirm_delete:
-        if st.button("Clear All Notes", type="primary", use_container_width=True):
-            st.session_state.confirm_delete = True
-            st.rerun()
-    else:
-        st.warning("Are you sure?")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("✅ Yes", type="primary", use_container_width=True):
-                save_notes([])
-                st.session_state.confirm_delete = False
-                st.rerun()
-        with c2:
-            if st.button("❌ No", use_container_width=True):
-                st.session_state.confirm_delete = False
-                st.rerun()
+        csv = pd.DataFrame(notes).to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Export CSV", data=csv, file_name='notes.csv', use_container_width=True)
 
 # --- MAIN AREA ---
-search_query = st.text_input("🔍 Search notes...", "").lower()
+search = st.text_input("🔍 Search...", "").lower()
+filtered = [n for n in notes if search in n['title'].lower() or search in n['content'].lower()]
 
-if not notes:
-    st.info("No notes found. Create one in the sidebar!")
-else:
-    filtered = [n for n in notes if search_query in n['title'].lower() or search_query in n['content'].lower()]
-    
-    for note in reversed(filtered):
-        with st.expander(f"📌 {note['title']} ({note.get('timestamp', 'No Date')})"):
-            edit_mode_key = f"edit_mode_{note['id']}"
-            if edit_mode_key not in st.session_state:
-                st.session_state[edit_mode_key] = False
-            
-            if not st.session_state[edit_mode_key]:
-                st.write(note['content'])
-                st.divider()
-                col_l, col_m, col_r = st.columns([4, 1, 1])
-                with col_m:
-                    if st.button("🗑️", key=f"del_{note['id']}"):
-                        delete_note(note['id'])
-                        st.rerun()
-                with col_r:
-                    if st.button("✏️", key=f"edit_{note['id']}"):
-                        st.session_state[edit_mode_key] = True
-                        st.rerun()
-            else:
-                edit_title = st.text_input("Edit Title", value=note['title'], key=f"t_{note['id']}")
-                edit_content = st.text_area("Edit Content", value=note['content'], key=f"c_{note['id']}")
-                cs, cc = st.columns(2)
-                with cs:
-                    if st.button("💾 Save", key=f"s_{note['id']}", use_container_width=True):
-                        update_note(note['id'], edit_title, edit_content)
-                        st.session_state[edit_mode_key] = False
-                        st.rerun()
-                with cc:
-                    if st.button("❌ Cancel", key=f"can_{note['id']}", use_container_width=True):
-                        st.session_state[edit_mode_key] = False
-                        st.rerun()
+for note in reversed(filtered):
+    with st.expander(f"📌 {note['title']} ({note.get('timestamp', 'N/A')})"):
+        st.write(note['content'])
+        col1, col2 = st.columns([5, 1])
+        with col2:
+            if st.button("🗑️", key=f"del_{note['id']}"):
+                delete_note(note['id'])
+                st.rerun()
