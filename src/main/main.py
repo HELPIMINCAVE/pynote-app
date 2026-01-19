@@ -1,22 +1,24 @@
 import json
 import os
+import hashlib
 from datetime import datetime
 
 DB_PATH = "notes_db.json"
 
+def hash_password(password):
+    # Turns "password123" into a long, unreadable string
+    return hashlib.sha256(password.encode()).hexdigest()
+
 def load_db():
     if not os.path.exists(DB_PATH):
         return {"users": [], "notes": []}
-    
     with open(DB_PATH, "r") as f:
         try:
             data = json.load(f)
-            # CRITICAL CHECK: If it's a list or doesn't have 'users',
-            # it's the old format. We must reset it to the new format.
             if not isinstance(data, dict) or "users" not in data:
                 return {"users": [], "notes": []}
             return data
-        except (json.JSONDecodeError, KeyError):
+        except:
             return {"users": [], "notes": []}
 
 def save_db(db):
@@ -25,19 +27,24 @@ def save_db(db):
 
 def register_user(username, password):
     db = load_db()
-    # Check if username already exists
     if any(u['username'] == username for u in db['users']):
         return False
-    db['users'].append({"username": username, "password": password})
+    db['users'].append({"username": username, "password": hash_password(password)})
     save_db(db)
     return True
 
 def login_user(username, password):
     db = load_db()
-    for user in db['users']:
-        if user['username'] == username and user['password'] == password:
-            return True
-    return False
+    hashed = hash_password(password)
+    return any(u['username'] == username and u['password'] == hashed for u in db['users'])
+
+def delete_account(username):
+    db = load_db()
+    # 1. Remove the user
+    db['users'] = [u for u in db['users'] if u['username'] != username]
+    # 2. Remove all notes belonging to that user
+    db['notes'] = [n for n in db['notes'] if n.get('owner') != username]
+    save_db(db)
 
 def load_notes(username):
     db = load_db()
