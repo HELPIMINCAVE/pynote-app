@@ -31,13 +31,21 @@ if not st.session_state.logged_in:
                 st.error(message)
     
     with tab2:
-        nu = st.text_input("New Username", key="reg_u")
-        np = st.text_input("New Password", type="password", key="reg_p")
+        nu = st.text_input("New Username", key="reg_u").strip()
+        np = st.text_input("New Password", type="password", key="reg_p").strip()
+        
         if st.button("Register Account", use_container_width=True):
-            # Capture both values here!
+            # 1. Try to create the account
             success, message = register_user(nu, np)
+            
             if success:
-                st.success(message)
+                # 2. If registration worked, set session state immediately
+                st.session_state.logged_in = True
+                st.session_state.username = nu
+                
+                # 3. Show a quick success message and refresh to the main app
+                st.success("Account created! Logging you in...")
+                st.rerun()
             else:
                 st.error(message)
     st.stop()
