@@ -28,12 +28,35 @@ def save_db(db):
         json.dump(db, f, indent=4)
 
 
+# Add this function to your src/main/main.py
+
+def validate_credentials(username, password):
+    # Rule 1: Cannot be empty
+    if not username or not password:
+        return False, "Username and Password cannot be empty."
+    
+    # Rule 2: Minimum 3 characters
+    if len(username) < 3 or len(password) < 3:
+        return False, "Username and Password must be at least 3 characters long."
+    
+    # Rule 3: Username and Password cannot be the same
+    if username.lower() == password.lower():
+        return False, "Username and Password cannot be the same."
+    
+    return True, "Valid"
+
+
 def register_user(username, password):
-    """Adds a new user to the database if the username is unique."""
     db = load_db()
-    # Check if username already exists
+    
+    # First, check our new validation rules
+    is_valid, message = validate_credentials(username, password)
+    if not is_valid:
+        return False, message
+    
+    # Second, check if username already exists
     if any(u['username'] == username for u in db['users']):
-        return False
+        return False, "Username already exists."
     
     db['users'].append({
         "username": username,
@@ -41,7 +64,7 @@ def register_user(username, password):
         "last_login": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     })
     save_db(db)
-    return True
+    return True, "Account created successfully!"
 
 
 # IMPORTANT: Make sure this function is also present

@@ -29,13 +29,16 @@ if not st.session_state.logged_in:
                 st.error("Invalid username or password.")
     
     with tab2:
-        nu = st.text_input("New Username", key="reg_u")
-        np = st.text_input("New Password", type="password", key="reg_p")
+        nu = st.text_input("New Username", key="reg_u").strip()  # .strip() removes accidental spaces
+        np = st.text_input("New Password", type="password", key="reg_p").strip()
+        
         if st.button("Register Account", use_container_width=True):
-            if register_user(nu, np):
-                st.success("Account created! Please switch to the Login tab.")
+            # We now catch the boolean AND the message from our new function
+            success, message = register_user(nu, np)
+            if success:
+                st.success(message)
             else:
-                st.error("Username already exists.")
+                st.error(message)
     st.stop()
 
 # --- LOGGED IN APP ---
